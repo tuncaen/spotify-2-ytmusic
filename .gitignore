@@ -1,0 +1,25 @@
+# Secrets / credentials
+.env
+.spotify_cache
+browser.json
+oauth.json
+headers_auth.json
+
+# Local state
+state.db
+unmatched_report.csv
+*.db-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+.DS_Store
