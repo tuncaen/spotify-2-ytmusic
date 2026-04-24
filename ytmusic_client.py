@@ -1,5 +1,5 @@
 import os
-from ytmusicapi import YTMusic
+from ytmusicapi import YTMusic, OAuthCredentials
 import config
 
 
@@ -8,9 +8,20 @@ class YTMusicClient:
         if not os.path.exists(config.YTMUSIC_AUTH_FILE):
             raise FileNotFoundError(
                 f"{config.YTMUSIC_AUTH_FILE} yok. "
-                "Önce `ytmusicapi browser` komutunu çalıştır (README'ye bak)."
+                "Önce `ytmusicapi oauth oauth.json --client-id ... --client-secret ...` "
+                "komutunu çalıştır (README'ye bak)."
             )
-        self.yt = YTMusic(config.YTMUSIC_AUTH_FILE)
+        if not (config.YT_OAUTH_CLIENT_ID and config.YT_OAUTH_CLIENT_SECRET):
+            raise RuntimeError(
+                ".env içinde YT_OAUTH_CLIENT_ID ve YT_OAUTH_CLIENT_SECRET eksik."
+            )
+        self.yt = YTMusic(
+            config.YTMUSIC_AUTH_FILE,
+            oauth_credentials=OAuthCredentials(
+                client_id=config.YT_OAUTH_CLIENT_ID,
+                client_secret=config.YT_OAUTH_CLIENT_SECRET,
+            ),
+        )
 
     def get_library_playlists(self):
         return self.yt.get_library_playlists(limit=500)

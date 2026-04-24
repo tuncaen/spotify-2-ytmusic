@@ -10,13 +10,21 @@ SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8888/
 SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative"
 
 # --- YT Music ---
-# `ytmusicapi browser` komutu ile oluşturulan dosya
-YTMUSIC_AUTH_FILE = "browser.json"
+# `ytmusicapi oauth` ile oluşturulan dosya (OAuth flow — browser'dan daha güvenilir)
+YTMUSIC_AUTH_FILE = "oauth.json"
+YT_OAUTH_CLIENT_ID = os.getenv("YT_OAUTH_CLIENT_ID")
+YT_OAUTH_CLIENT_SECRET = os.getenv("YT_OAUTH_CLIENT_SECRET")
 
 # --- Sync hedefi: Spotify'daki playlist isimleri (bire bir) ---
 PLAYLISTS_TO_SYNC = [
-    # "Chill Vibes",
-    # "Türkçe Rock",
+    "Radyo'dan Beğenilenler",
+    "Sets Singles",
+    "E&B T",
+    "Working",
+    "Radio Epic",
+    "Radio Tech",
+    "Sorrow Radio",
+    "StDeep Radio",
 ]
 
 # --- Eşleştirme ---
