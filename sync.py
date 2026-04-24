@@ -11,9 +11,12 @@ def build_query(track):
     return f"{' '.join(track['artists'])} {track['name']}"
 
 
+LIKED_SONGS_SENTINEL_ID = "__LIKED_SONGS__"
+
+
 def main():
-    if not config.PLAYLISTS_TO_SYNC:
-        print("! config.py içindeki PLAYLISTS_TO_SYNC boş.")
+    if not config.PLAYLISTS_TO_SYNC and not getattr(config, "SYNC_LIKED_SONGS", False):
+        print("! config.py içinde ne PLAYLISTS_TO_SYNC ne SYNC_LIKED_SONGS aktif.")
         sys.exit(1)
 
     sp = SpotifyClient()
@@ -25,6 +28,13 @@ def main():
     for name in config.PLAYLISTS_TO_SYNC:
         if name not in found:
             print(f"!  Spotify'da bulunamadı: {name}")
+
+    if getattr(config, "SYNC_LIKED_SONGS", False):
+        sp_playlists.append({
+            "id": LIKED_SONGS_SENTINEL_ID,
+            "name": config.LIKED_SONGS_YT_NAME,
+            "_liked": True,
+        })
 
     unmatched_rows = []
     total_added = 0
@@ -41,7 +51,10 @@ def main():
             print("   + YT Music'te yeni playlist oluşturuldu")
         state.save_playlist_mapping(sp_pl_id, sp_pl_name, yt_pl_id)
 
-        tracks = sp.get_playlist_tracks(sp_pl_id)
+        if sp_pl.get("_liked"):
+            tracks = sp.get_liked_songs()
+        else:
+            tracks = sp.get_playlist_tracks(sp_pl_id)
         new = [t for t in tracks if not state.is_synced(t["id"], sp_pl_id)]
         print(f"   {len(tracks)} şarkı ({len(new)} yeni)")
 
