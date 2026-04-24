@@ -19,12 +19,6 @@ YT_OAUTH_CLIENT_SECRET = os.getenv("YT_OAUTH_CLIENT_SECRET")
 PLAYLISTS_TO_SYNC = [
     "Radyo'dan Beğenilenler",
     "Sets Singles",
-    "E&B T",
-    "Working",
-    "Radio Epic",
-    "Radio Tech",
-    "Sorrow Radio",
-    "StDeep Radio",
 ]
 
 # --- Eşleştirme ---

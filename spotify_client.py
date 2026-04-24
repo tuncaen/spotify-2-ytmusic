@@ -32,7 +32,8 @@ class SpotifyClient:
         )
         while results:
             for item in results["items"]:
-                t = item.get("track")
+                # Spotify API yeni sürümde track'i "item" altında döndürüyor, eskiden "track"
+                t = item.get("track") or item.get("item")
                 if not t or not t.get("id"):   # local/unavailable -> skip
                     continue
                 tracks.append({
