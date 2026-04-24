@@ -14,7 +14,7 @@ pip install -r requirements.txt
 ## 1) Spotify auth
 
 1. https://developer.spotify.com/dashboard → **Create App**
-2. Redirect URI olarak `http://localhost:8888/callback` ekle
+2. Redirect URI olarak `http://127.0.0.1:8888/callback` ekle
 3. `Client ID` ve `Client Secret`'ı al
 4. `.env.example` → `.env` olarak kopyala, değerleri doldur
 
