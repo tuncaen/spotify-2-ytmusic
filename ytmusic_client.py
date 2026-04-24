@@ -137,7 +137,44 @@ class YTMusicClient:
         except Exception:
             return []
 
-        return list(_extract_song_candidates(data))[:limit]
+        candidates = list(_extract_song_candidates(data))[:limit]
+        self._fill_durations(candidates)
+        return candidates
+
+    def _fill_durations(self, candidates: list[dict]) -> None:
+        """Data API v3'ten tek batch ile süreleri al (50 ID/batch = 1 unit)."""
+        ids = [c["videoId"] for c in candidates if c.get("videoId")]
+        if not ids:
+            return
+        try:
+            r = requests.get(
+                f"{YT_DATA_API}/videos",
+                headers=self._auth_headers(),
+                params={"part": "contentDetails", "id": ",".join(ids)},
+                timeout=15,
+            )
+            r.raise_for_status()
+            data = r.json()
+        except Exception:
+            return
+        dur_map = {}
+        for it in data.get("items", []):
+            iso = (it.get("contentDetails") or {}).get("duration")
+            if iso:
+                dur_map[it["id"]] = _iso_duration_to_seconds(iso)
+        for c in candidates:
+            if c["videoId"] in dur_map:
+                c["duration_seconds"] = dur_map[c["videoId"]]
+
+
+def _iso_duration_to_seconds(iso: str) -> int:
+    """ISO 8601 (PT#H#M#S) -> saniye."""
+    import re
+    m = re.match(r"PT(?:(\d+)H)?(?:(\d+)M)?(?:(\d+)S)?", iso or "")
+    if not m:
+        return 0
+    h, mi, s = (int(x) if x else 0 for x in m.groups())
+    return h * 3600 + mi * 60 + s
 
 
 def _extract_song_candidates(data: dict):
