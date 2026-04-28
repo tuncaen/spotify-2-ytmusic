@@ -106,17 +106,18 @@ class YTMusicClient:
         r.raise_for_status()
         return r.json()["id"]
 
-    def add_track_to_playlist(self, playlist_id: str, video_id: str) -> Any:
+    def add_track_to_playlist(self, playlist_id: str, video_id: str, position: int | None = None) -> Any:
+        snippet = {
+            "playlistId": playlist_id,
+            "resourceId": {"kind": "youtube#video", "videoId": video_id},
+        }
+        if position is not None:
+            snippet["position"] = position
         r = requests.post(
             f"{YT_DATA_API}/playlistItems",
             headers={**self._auth_headers(), "Content-Type": "application/json"},
             params={"part": "snippet"},
-            json={
-                "snippet": {
-                    "playlistId": playlist_id,
-                    "resourceId": {"kind": "youtube#video", "videoId": video_id},
-                }
-            },
+            json={"snippet": snippet},
         )
         r.raise_for_status()
         return r.json()
