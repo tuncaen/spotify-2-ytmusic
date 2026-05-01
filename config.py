@@ -10,10 +10,9 @@ SPOTIFY_REDIRECT_URI = os.getenv("SPOTIFY_REDIRECT_URI", "http://127.0.0.1:8888/
 SPOTIFY_SCOPES = "playlist-read-private playlist-read-collaborative user-library-read"
 
 # --- YT Music ---
-# `ytmusicapi oauth` ile oluşturulan dosya (OAuth flow — browser'dan daha güvenilir)
-YTMUSIC_AUTH_FILE = "oauth.json"
-YT_OAUTH_CLIENT_ID = os.getenv("YT_OAUTH_CLIENT_ID")
-YT_OAUTH_CLIENT_SECRET = os.getenv("YT_OAUTH_CLIENT_SECRET")
+# Browser auth (cookie/SAPISID) — quota yok. Headers'ı music.youtube.com'dan capture
+# edip `setup(filepath='browser.json', headers_raw=...)` ile üretilir (README'ye bak).
+YTMUSIC_AUTH_FILE = "browser.json"
 
 # --- Sync hedefi: Spotify'daki playlist isimleri (bire bir) ---
 PLAYLISTS_TO_SYNC = [

@@ -51,18 +51,15 @@ def main():
             print("   + YT Music'te yeni playlist oluşturuldu")
         state.save_playlist_mapping(sp_pl_id, sp_pl_name, yt_pl_id)
 
-        is_liked = sp_pl.get("_liked", False)
-        if is_liked:
-            # Spotify newest-first döndürür. Reverse + position=0 ile her track playlist
-            # başına insert edilir → son insert (Spotify newest) en üstte kalır.
-            # Bu kombinasyon hem position-view hem date_added DESC view'da doğru.
+        if sp_pl.get("_liked"):
+            # Spotify newest-first döndürür. Reverse'leyerek oldest-first iterate
+            # ediyoruz → append ile son eklenen (Spotify newest) en yüksek
+            # publishedAt'a sahip olur, "Date added (newest first)" sort'unda en üstte.
             tracks = list(reversed(sp.get_liked_songs()))
         else:
             tracks = sp.get_playlist_tracks(sp_pl_id)
         new = [t for t in tracks if not state.is_synced(t["id"], sp_pl_id)]
         print(f"   {len(tracks)} şarkı ({len(new)} yeni)")
-
-        insert_position = 0 if is_liked else None
 
         for t in new:
             candidates = yt.search_song(build_query(t), limit=5)
@@ -70,7 +67,7 @@ def main():
 
             if best:
                 try:
-                    yt.add_track_to_playlist(yt_pl_id, best["videoId"], position=insert_position)
+                    yt.add_track_to_playlist(yt_pl_id, best["videoId"])
                     state.record_track(t["id"], sp_pl_id, best["videoId"],
                                        yt_pl_id, score, "added")
                     total_added += 1
