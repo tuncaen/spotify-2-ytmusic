@@ -10,6 +10,7 @@ headers.txt
 state.db
 unmatched_report.csv
 liked_plan.csv
+manual_matches.json
 *.db-journal
 
 # Python

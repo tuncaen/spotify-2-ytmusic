@@ -1,4 +1,5 @@
 import csv
+import json
 import os
 import re
 import sys
@@ -12,6 +13,23 @@ import config
 
 LIKED_SONGS_SENTINEL_ID = "__LIKED_SONGS__"
 LIKED_PLAN_FILE = "liked_plan.csv"
+MANUAL_MATCHES_FILE = "manual_matches.json"
+
+
+def load_manual_matches():
+    """{spotify_track_id: ytmusic_video_id} — kalıcı override deposu."""
+    if not os.path.exists(MANUAL_MATCHES_FILE):
+        return {}
+    try:
+        with open(MANUAL_MATCHES_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def save_manual_matches(mapping):
+    with open(MANUAL_MATCHES_FILE, "w", encoding="utf-8") as f:
+        json.dump(mapping, f, indent=2, ensure_ascii=False)
 
 
 def build_query(track):
@@ -76,16 +94,23 @@ def handle_liked_songs(sp, yt, state):
         print(f"   Spotify'da {len(spotify_liked)} liked song, hepsi state'te. Yeni yok.")
         return
 
-    print(f"   {len(spotify_liked)} liked song, {len(new_tracks)} yeni — match deniyor...")
-    matched = {}    # spotify_id -> {"videoId":..., "score":...}
+    manual = load_manual_matches()
+    print(f"   {len(spotify_liked)} liked song, {len(new_tracks)} yeni — match deniyor")
+    print(f"   ({len(manual)} kalıcı override {MANUAL_MATCHES_FILE}'den yüklendi)")
+
+    matched = {}    # spotify_id -> {"videoId":..., "score":..., "via":"manual"|"search"}
     unmatched = {}  # spotify_id -> score
     for t in new_tracks:
+        sid = t["id"]
+        if sid in manual:
+            matched[sid] = {"videoId": manual[sid], "score": 1.0, "via": "manual"}
+            continue
         candidates = yt.search_song(build_query(t), limit=5)
         best, score = pick_best_match(t, candidates)
         if best:
-            matched[t["id"]] = {"videoId": best["videoId"], "score": score}
+            matched[sid] = {"videoId": best["videoId"], "score": score, "via": "search"}
         else:
-            unmatched[t["id"]] = score
+            unmatched[sid] = score
 
     print(f"   matched: {len(matched)}, needs_review: {len(unmatched)}")
 
@@ -243,6 +268,16 @@ def _apply_liked_plan(sp, yt, state, rows):
             return False
 
     print(f"\n   apply tamam: {total} yeni eklendi (toplam {len(rows_sorted)}).")
+
+    # Tüm başarılı mapping'leri manual_matches.json'a yaz — kalıcı kayıt.
+    # Bir sonraki plan generation'da search yapılmadan direkt buradan pre-fill yapılacak.
+    manual = load_manual_matches()
+    for r in rows_sorted:
+        if r["spotify_id"] and r["ytmusic_video_id"]:
+            manual[r["spotify_id"]] = r["ytmusic_video_id"]
+    save_manual_matches(manual)
+    print(f"   {MANUAL_MATCHES_FILE} güncellendi ({len(manual)} entry).")
+
     return True
 
 
