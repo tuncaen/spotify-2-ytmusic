@@ -9,6 +9,7 @@ headers.txt
 # Local state
 state.db
 unmatched_report.csv
+liked_plan.csv
 *.db-journal
 
 # Python

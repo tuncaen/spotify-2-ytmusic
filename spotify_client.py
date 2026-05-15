@@ -41,7 +41,8 @@ class SpotifyClient:
         return tracks
 
     def get_liked_songs(self):
-        """Spotify'ın 'Liked Songs' koleksiyonu — playlist değil, özel /me/tracks endpoint'i."""
+        """Spotify'ın 'Liked Songs' koleksiyonu — playlist değil, özel /me/tracks endpoint'i.
+        Her track dict'i ek olarak 'added_at' içerir (kronolojik sıralama için)."""
         tracks = []
         results = self.sp.current_user_saved_tracks(limit=50)
         while results:
@@ -49,7 +50,9 @@ class SpotifyClient:
                 t = item.get("track")
                 if not t or not t.get("id"):
                     continue
-                tracks.append(_to_track(t))
+                track = _to_track(t)
+                track["added_at"] = item.get("added_at")
+                tracks.append(track)
             results = self.sp.next(results) if results.get("next") else None
         return tracks
 

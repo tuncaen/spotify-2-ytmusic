@@ -73,3 +73,29 @@ class State:
                 "INSERT OR REPLACE INTO playlist_mapping VALUES (?,?,?,?)",
                 (sp_pl_id, sp_pl_name, yt_pl_id, datetime.utcnow().isoformat()),
             )
+
+    def get_added_ids(self, spotify_playlist_id):
+        """Status='added' olan spotify_track_id'leri döner."""
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT spotify_track_id FROM synced_tracks "
+                "WHERE spotify_playlist_id=? AND status='added'",
+                (spotify_playlist_id,),
+            ).fetchall()
+        return {r[0] for r in rows}
+
+    def get_added_video_map(self, spotify_playlist_id):
+        """{spotify_track_id: ytmusic_video_id} - status='added' olanlar."""
+        with self._conn() as c:
+            rows = c.execute(
+                "SELECT spotify_track_id, ytmusic_video_id FROM synced_tracks "
+                "WHERE spotify_playlist_id=? AND status='added'",
+                (spotify_playlist_id,),
+            ).fetchall()
+        return {r[0]: r[1] for r in rows}
+
+    def clear_playlist(self, spotify_playlist_id):
+        """Bir playlist'in tüm track ve mapping kayıtlarını siler."""
+        with self._conn() as c:
+            c.execute("DELETE FROM synced_tracks WHERE spotify_playlist_id=?", (spotify_playlist_id,))
+            c.execute("DELETE FROM playlist_mapping WHERE spotify_playlist_id=?", (spotify_playlist_id,))
