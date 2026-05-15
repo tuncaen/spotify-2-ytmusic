@@ -205,20 +205,25 @@ def _apply_liked_plan(sp, yt, state, rows):
     rows_sorted = sorted(rows, key=lambda r: r.get("added_at", "") or "")
 
     total = 0
-    errors = 0
+    errors = []
     for r in rows_sorted:
         vid = r["ytmusic_video_id"]
+        score = float(r["match_score"]) if r.get("match_score") else 1.0
         try:
             yt.add_track_to_playlist(new_pl_id, vid)
-            score = float(r["match_score"]) if r.get("match_score") else 1.0
             state.record_track(r["spotify_id"], sp_id, vid, new_pl_id, score, "added")
             total += 1
             print(f"   + {r['artist']} — {r['track']}")
         except Exception as e:
-            errors += 1
+            state.record_track(r["spotify_id"], sp_id, vid, new_pl_id, score, "error")
+            errors.append((r, e))
             print(f"   x {r['track']}: {e}")
 
-    print(f"\n   apply tamam: {total} eklendi, {errors} hata.")
+    print(f"\n   apply tamam: {total} eklendi, {len(errors)} hata.")
+    if errors:
+        print(f"   Başarısız tracks (sonraki sync'te yeniden denenecek):")
+        for r, e in errors:
+            print(f"     - {r['artist']} — {r['track']}  (videoId={r['ytmusic_video_id']})")
 
 
 def _read_plan(path):
