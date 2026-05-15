@@ -58,8 +58,12 @@ def handle_liked_songs(sp, yt, state):
                 print(f"   {r.get('artist','')} — {r.get('track','')}  (spotify_id={r.get('spotify_id','')})")
             print(f"   Dosyayı editleyip eksikleri doldur, sonra tekrar sync.py çalıştır.")
             return
-        _apply_liked_plan(sp, yt, state, rows)
-        os.remove(LIKED_PLAN_FILE)
+        success = _apply_liked_plan(sp, yt, state, rows)
+        if success:
+            os.remove(LIKED_PLAN_FILE)
+            print(f"   {LIKED_PLAN_FILE} silindi.")
+        else:
+            print(f"   {LIKED_PLAN_FILE} korundu — düzeltip tekrar sync.py çalıştırırsan kaldığı yerden devam edecek.")
         return
 
     # 2) Plan yok — yeni track'leri matchle
@@ -176,54 +180,70 @@ def _write_full_plan(state, sp_id, spotify_liked, new_matched, new_unmatched):
 
 
 def _apply_liked_plan(sp, yt, state, rows):
-    """Plan rows'u clean rebuild ile uygula: YT playlist sil → yeni oluştur →
-    added_at sırasında (oldest first) tüm tracks'leri append et."""
+    """
+    Plan rows'u uygula. Mod:
+      - FRESH (state'te 'added' yok): YT playlist sil + yeni oluştur, hepsini sırayla ekle
+      - RESUME (state'te 'added' var): mevcut YT playlist'i koru, state'te olanları skip et,
+        kalanları added_at sırasında ekle
+
+    Fail-fast: ilk hatada durur (state'e 'error' kaydeder), False döner.
+    Tüm başarılı tamamlanırsa True döner.
+    """
     sp_id = LIKED_SONGS_SENTINEL_ID
     yt_pl_name = config.LIKED_SONGS_YT_NAME
 
-    print(f"\n>> {yt_pl_name} apply ({len(rows)} track)")
+    already_synced = state.get_added_ids(sp_id)
+    is_resume = bool(already_synced)
 
-    # 1) Mevcut YT playlist'i sil
-    old_pl_id = state.get_ytmusic_playlist_id(sp_id) or yt.find_playlist_by_name(yt_pl_name)
-    if old_pl_id:
-        print(f"   eski playlist siliniyor: {old_pl_id}")
-        try:
-            yt.yt.delete_playlist(old_pl_id)
-        except Exception as e:
-            print(f"   delete err (devam): {e}")
+    if is_resume:
+        yt_pl_id = state.get_ytmusic_playlist_id(sp_id)
+        print(f"\n>> {yt_pl_name} RESUME — {len(already_synced)} zaten eklenmiş, kaldığı yerden devam")
+        if not yt_pl_id:
+            print(f"   !! state'te 'added' var ama playlist mapping yok — RESUME mümkün değil")
+            return False
+    else:
+        print(f"\n>> {yt_pl_name} FRESH apply ({len(rows)} track)")
+        # Mevcut aynı isimli YT playlist'i (varsa) sil
+        old_pl_id = yt.find_playlist_by_name(yt_pl_name)
+        if old_pl_id:
+            print(f"   eski playlist siliniyor: {old_pl_id}")
+            try:
+                yt.yt.delete_playlist(old_pl_id)
+            except Exception as e:
+                print(f"   delete err (devam): {e}")
+        # Yeni playlist
+        yt_pl_id = yt.create_playlist(yt_pl_name, "Synced from Spotify: Liked Songs")
+        state.save_playlist_mapping(sp_id, yt_pl_name, yt_pl_id)
+        print(f"   yeni playlist: {yt_pl_id}")
 
-    # 2) state'i temizle
-    state.clear_playlist(sp_id)
-
-    # 3) Yeni playlist
-    new_pl_id = yt.create_playlist(yt_pl_name, "Synced from Spotify: Liked Songs")
-    state.save_playlist_mapping(sp_id, yt_pl_name, new_pl_id)
-    print(f"   yeni playlist: {new_pl_id}")
-
-    # 4) Oldest-first sırala (eski added_at önce → eski publishedAt önce)
-    #    → Date added DESC view'de Spotify newest-first sıralamasıyla aynı
+    # added_at oldest-first sırala
     rows_sorted = sorted(rows, key=lambda r: r.get("added_at", "") or "")
+    pending = [r for r in rows_sorted if r["spotify_id"] not in already_synced]
+    print(f"   {len(pending)}/{len(rows_sorted)} track eklenecek")
 
     total = 0
-    errors = []
-    for r in rows_sorted:
+    for r in pending:
         vid = r["ytmusic_video_id"]
         score = float(r["match_score"]) if r.get("match_score") else 1.0
         try:
-            yt.add_track_to_playlist(new_pl_id, vid)
-            state.record_track(r["spotify_id"], sp_id, vid, new_pl_id, score, "added")
+            yt.add_track_to_playlist(yt_pl_id, vid)
+            state.record_track(r["spotify_id"], sp_id, vid, yt_pl_id, score, "added")
             total += 1
             print(f"   + {r['artist']} — {r['track']}")
         except Exception as e:
-            state.record_track(r["spotify_id"], sp_id, vid, new_pl_id, score, "error")
-            errors.append((r, e))
-            print(f"   x {r['track']}: {e}")
+            # FAIL-FAST: state'e error olarak yaz, dur, çık
+            state.record_track(r["spotify_id"], sp_id, vid, yt_pl_id, score, "error")
+            print(f"\n   x DURDU: {r['artist']} — {r['track']}")
+            print(f"     spotify_id: {r['spotify_id']}")
+            print(f"     videoId:    {vid}")
+            print(f"     hata:       {e}")
+            print(f"   Bu noktaya kadar {total} track eklendi.")
+            print(f"   {LIKED_PLAN_FILE}'de bu satırın ytmusic_video_id'sini düzelt")
+            print(f"   (veya satırı tamamen sil), sonra `python sync.py` — RESUME modda devam eder.")
+            return False
 
-    print(f"\n   apply tamam: {total} eklendi, {len(errors)} hata.")
-    if errors:
-        print(f"   Başarısız tracks (sonraki sync'te yeniden denenecek):")
-        for r, e in errors:
-            print(f"     - {r['artist']} — {r['track']}  (videoId={r['ytmusic_video_id']})")
+    print(f"\n   apply tamam: {total} yeni eklendi (toplam {len(rows_sorted)}).")
+    return True
 
 
 def _read_plan(path):
