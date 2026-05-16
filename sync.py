@@ -130,6 +130,9 @@ def handle_liked_songs(sp, yt, state):
 
 
 def _incremental_append(sp, yt, state, sp_id, yt_pl_name, new_tracks, matched):
+    """Append-only mod: tüm new_tracks matched ise, reverse iteration ile sırayla ekle.
+    Fail-fast: ilk hatada durur (kullanıcının manual_matches.json'a doğru videoId
+    eklemesi gerekir, sonra rerun)."""
     yt_pl_id = state.get_ytmusic_playlist_id(sp_id) or yt.find_playlist_by_name(yt_pl_name)
     if not yt_pl_id:
         yt_pl_id = yt.create_playlist(yt_pl_name, "Synced from Spotify: Liked Songs")
@@ -138,6 +141,7 @@ def _incremental_append(sp, yt, state, sp_id, yt_pl_name, new_tracks, matched):
 
     # Spotify newest-first döner; reverse ile oldest-first iterate
     # → last appended (newest from Spotify) en yüksek publishedAt → Date added DESC view'de en üstte
+    added = 0
     for t in reversed(new_tracks):
         m = matched.get(t["id"])
         if not m:
@@ -145,10 +149,18 @@ def _incremental_append(sp, yt, state, sp_id, yt_pl_name, new_tracks, matched):
         try:
             yt.add_track_to_playlist(yt_pl_id, m["videoId"])
             state.record_track(t["id"], sp_id, m["videoId"], yt_pl_id, m["score"], "added")
+            added += 1
             print(f"   + {t['artists'][0]} — {t['name']}  ({m['score']:.2f})")
         except Exception as e:
             state.record_track(t["id"], sp_id, m["videoId"], yt_pl_id, m["score"], "error")
-            print(f"   x eklenemedi ({t['name']}): {e}")
+            print(f"\n   x DURDU: {t['artists'][0]} — {t['name']}")
+            print(f"     spotify_id: {t['id']}")
+            print(f"     videoId:    {m['videoId']}")
+            print(f"     hata:       {e}")
+            print(f"   Bu noktaya kadar {added} track eklendi.")
+            print(f"   {MANUAL_MATCHES_FILE}'a bu spotify_id için doğru videoId yaz")
+            print(f"   (key: \"{t['id']}\"), sonra `python sync.py` — kaldığı yerden devam edecek.")
+            return
 
 
 def _write_full_plan(state, sp_id, spotify_liked, new_matched, new_unmatched):
