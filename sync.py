@@ -327,10 +327,15 @@ def handle_regular_playlist(sp, yt, state, sp_pl, unmatched_rows):
     new = [t for t in tracks if not state.is_synced(t["id"], sp_pl_id)]
     print(f"   {len(tracks)} şarkı ({len(new)} yeni)")
 
+    manual = load_manual_matches()
     added = 0
     for t in new:
-        candidates = yt.search_song(build_query(t), limit=5)
-        best, score = pick_best_match(t, candidates)
+        if t["id"] in manual:
+            best = {"videoId": manual[t["id"]]}
+            score = 1.0
+        else:
+            candidates = yt.search_song(build_query(t), limit=5)
+            best, score = pick_best_match(t, candidates)
 
         if best:
             try:
