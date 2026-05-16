@@ -1,4 +1,5 @@
 import os
+import time
 from typing import Any
 
 from ytmusicapi import YTMusic
@@ -41,4 +42,18 @@ class YTMusicClient:
             return []
 
     def add_track_to_playlist(self, playlist_id: str, video_id: str) -> Any:
-        return self.yt.add_playlist_items(playlist_id, [video_id])
+        """YT Music'in rate-limit/transient 409 hatalarına karşı exponential backoff."""
+        delays = [2, 5, 10, 20]  # saniye — toplam ~37sn max bekleme
+        for attempt, delay in enumerate([0] + delays):
+            if delay:
+                time.sleep(delay)
+            try:
+                return self.yt.add_playlist_items(playlist_id, [video_id])
+            except Exception as e:
+                msg = str(e)
+                # 409 Conflict + "Sorry, something went wrong" = transient throttle
+                # 4xx/5xx server errors = retry candidate
+                transient = "409" in msg or "500" in msg or "502" in msg or "503" in msg or "504" in msg
+                if not transient or attempt >= len(delays):
+                    raise
+                # ileride bir attempt daha var, backoff'a devam
